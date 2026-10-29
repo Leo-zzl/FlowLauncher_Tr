@@ -113,7 +113,7 @@ def build_request(text, target, settings):
     ]}
     key = str(settings.get("api_key") or os.environ.get("LEO_TRANSLATE_API_KEY", "")).strip()
     headers = {"Content-Type": "application/json", "Accept": "application/json",
-               "User-Agent": "LeoTranslate/1.1.0"}
+               "User-Agent": "LeoTranslate/1.1.1"}
     if key:
         if "\r" in key or "\n" in key:
             raise UserError("API Key 包含换行，请重新填写。")

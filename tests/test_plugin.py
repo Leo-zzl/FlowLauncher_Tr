@@ -239,6 +239,15 @@ class PluginTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs["input"], text.encode("utf-8"))
             self.assertNotIn("shell", run.call_args.kwargs)
 
+    def test_settings_are_safe_for_windows_default_encoding(self):
+        raw = (ROOT / "SettingsTemplate.yaml").read_bytes()
+        settings = json.loads(raw.decode("ascii"))
+        controls = {x["attributes"]["name"]: x["attributes"] for x in settings["body"]
+                    if "name" in x["attributes"]}
+        self.assertEqual(len(controls), 10)
+        self.assertIn("专业", controls["glossary_prompt"]["defaultValue"])
+        self.assertEqual(controls["glossary_count"]["defaultValue"], "5")
+
     def test_manifest(self):
         manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["Language"], "python")

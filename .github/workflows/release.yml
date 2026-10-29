@@ -9,7 +9,19 @@ concurrency:
   group: plugin-release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run plugin tests on Windows
+        run: python -m unittest discover -s tests -v
+      - name: Verify settings and isolated Python entry point
+        run: python .github/scripts/verify-store.py
   publish:
+    needs: windows-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out the exact pushed commit

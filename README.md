@@ -6,11 +6,12 @@
 
 [简体中文](#简体中文) · [English](#english) · [下载 / Downloads](https://github.com/Leo-zzl/FlowLauncher_Tr/releases) · [版本记录 / Release notes](docs/release-notes)
 
-**当前版本 / Current version: 1.1.0** · Windows · Python 3.9+ · Chat Completions-compatible API
+**当前版本 / Current version: 1.1.1** · Windows · Python 3.9+ · Chat Completions-compatible API
 
 | 版本 / Version | 安装包 / Plugin package | 更新说明 / Release notes |
 | --- | --- | --- |
-| **1.1.0 — 推荐 / Recommended** | [LeoTranslate-1.1.0.zip](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/download/v1.1.0/LeoTranslate-1.1.0.zip) | [v1.1.0](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/tag/v1.1.0) |
+| **1.1.1 — 推荐 / Recommended** | [LeoTranslate-1.1.1.zip](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/download/v1.1.1/LeoTranslate-1.1.1.zip) | [v1.1.1](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/tag/v1.1.1) |
+| 1.1.0 | [LeoTranslate-1.1.0.zip](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/download/v1.1.0/LeoTranslate-1.1.0.zip) | [v1.1.0](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/tag/v1.1.0) |
 | 1.0.0 — 初始版本 / Initial release | [LeoTranslate-1.0.0.zip](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/download/v1.0.0/LeoTranslate-1.0.0.zip) | [v1.0.0](https://github.com/Leo-zzl/FlowLauncher_Tr/releases/tag/v1.0.0) |
 
 > 安装请下载上表中的插件 ZIP；GitHub 自动生成的 **Source code** 压缩包包含仓库目录，不能直接当作插件安装包使用。每个 Release 均附有 `SHA256SUMS.txt`。
@@ -47,9 +48,9 @@ tr zh Uplink capacity improves assured experience in high-density scenarios.
 
 ### 安装与首次配置
 
-1. 安装并启动 [Flow Launcher](https://www.flowlauncher.com/)，下载 **LeoTranslate-1.1.0.zip**。
+1. 安装并启动 [Flow Launcher](https://www.flowlauncher.com/)，下载 **LeoTranslate-1.1.1.zip**。
 2. 在 Flow 搜索框输入 `Flow Launcher UserData Folder`，打开实际使用的用户数据目录，再退出 Flow。
-3. 在该目录的 `Plugins` 下新建 `LeoTranslate-1.1.0`，将 ZIP 内文件解压到此处。确认路径为 `Plugins\LeoTranslate-1.1.0\plugin.json`，避免多套一层目录。
+3. 在该目录的 `Plugins` 下新建 `LeoTranslate-1.1.1`，将 ZIP 内文件解压到此处。确认路径为 `Plugins\LeoTranslate-1.1.1\plugin.json`，避免多套一层目录。
 4. 重启 Flow，进入 **设置 → 插件 → Leo Translate**，填写完整 API URL、模型名称和 API Key。
 5. 按 `Alt+Space` 唤起 Flow，输入 `tr 需要翻译的内容`。
 
@@ -96,11 +97,11 @@ API URL 应为 **Chat Completions 兼容端点**，不是聊天网页。原生 A
 
 修改 Windows 环境变量后，请完全退出并重启 Flow。密钥框仅遮挡显示，不代表加密存储；环境变量也不是加密存储。请勿把真实密钥提交到仓库。
 
-### 从 1.0.0 升级
+### 从旧版本升级
 
 1. 打开原插件目录并退出 Flow。
-2. 将 **1.1.0 安装 ZIP 内的文件覆盖到原插件文件夹**，保留用户自己的配置文件。
-3. 重启 Flow，确认插件页显示 1.1.0。目录名可以仍为 `LeoTranslate-1.0.0`。
+2. 将 **1.1.1 安装 ZIP 内的文件覆盖到原插件文件夹**，保留用户自己的配置文件。
+3. 重启 Flow，确认插件页显示 1.1.1。目录名可以仍为 `LeoTranslate-1.0.0`。
 
 插件 ID、触发词和已有设置字段未改变，原接口配置应继续使用。不要同时保留两个启用的插件目录。旧翻译提示词可以保留，程序会追加新版所需的结构化输出约定。
 
@@ -150,9 +151,9 @@ Simple sentences may produce no glossary entries. Shortcuts follow your Flow con
 
 ### Installation and initial setup
 
-1. Install and launch [Flow Launcher](https://www.flowlauncher.com/), then download **LeoTranslate-1.1.0.zip**.
+1. Install and launch [Flow Launcher](https://www.flowlauncher.com/), then download **LeoTranslate-1.1.1.zip**.
 2. Search for `Flow Launcher UserData Folder` in Flow to open the active user data directory, then exit Flow.
-3. Create `LeoTranslate-1.1.0` inside its `Plugins` directory and extract the ZIP contents there. Check that the path is `Plugins\LeoTranslate-1.1.0\plugin.json`, without an extra nested directory.
+3. Create `LeoTranslate-1.1.1` inside its `Plugins` directory and extract the ZIP contents there. Check that the path is `Plugins\LeoTranslate-1.1.1\plugin.json`, without an extra nested directory.
 4. Restart Flow. Open **Settings → Plugins → Leo Translate** and enter the full API URL, model ID, and API key.
 5. Press `Alt+Space` and type `tr Text to translate`.
 
@@ -199,11 +200,11 @@ Use a **Chat Completions-compatible API endpoint**, not a chat website. Native A
 
 Completely exit and restart Flow after changing Windows environment variables. Masked password inputs and environment variables do not imply encrypted storage. Never commit real API keys to the repository.
 
-### Upgrading from 1.0.0
+### Upgrading from an earlier version
 
 1. Locate the existing plugin directory and exit Flow.
-2. **Extract the 1.1.0 plugin ZIP into that same directory**, replacing plugin files while preserving your own configuration files.
-3. Restart Flow and confirm that the plugin settings show 1.1.0. The directory may keep its old `LeoTranslate-1.0.0` name.
+2. **Extract the 1.1.1 plugin ZIP into that same directory**, replacing plugin files while preserving your own configuration files.
+3. Restart Flow and confirm that the plugin settings show 1.1.1. The directory may keep its old `LeoTranslate-1.0.0` name.
 
 The plugin ID, action keyword, and existing setting keys are unchanged, so your API configuration should remain available. Keep only one enabled installation. Existing translation prompts can be retained; the plugin appends the structured-output instructions required by 1.1.0.
 
@@ -239,6 +240,8 @@ python -m unittest discover -s tests -v
 | `tests/test_plugin.py` | 模拟 API 与边界测试 / Mock-API and edge-case tests |
 | `.github/scripts/package.py` | 生成安装包和校验文件 / Build the plugin ZIP and checksum file |
 | `.github/workflows/release.yml` | 测试、打包与发布 / Test, package, and publish |
+
+**1.1.1：**新增设置编码回归测试，共 21 项，并增加 Windows CI 与隔离 Python 启动检查。 / Adds a settings-encoding regression test (21 tests total), Windows CI, and an isolated Python smoke check.
 
 **验证范围 / Validation scope:** 1.0.0 包含 16 项测试，1.1.0 包含 20 项测试；两版均已通过 GitHub Actions。测试覆盖模拟 API 往返、中文与长文本、JSON-RPC、防抖及异常处理；1.1.0 另覆盖单项译文、排序和词组过滤。未在 Windows Flow 图形界面或真实付费模型接口上完成验证。
 

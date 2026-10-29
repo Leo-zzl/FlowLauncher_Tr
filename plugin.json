@@ -2,11 +2,11 @@
   "ID": "AE559277D9894B3EA94BE574731C76A8",
   "ActionKeyword": "tr",
   "Name": "Leo Translate",
-  "Description": "完整译文仅占第一项，后续项展示专业英文词组与本句语境解释。",
+  "Description": "LLM translation with a complete translation first and contextual English phrase explanations.",
   "Author": "Leo",
-  "Version": "1.1.0",
+  "Version": "1.1.1",
   "Language": "python",
-  "Website": "https://www.flowlauncher.com/docs/",
+  "Website": "https://github.com/Leo-zzl/FlowLauncher_Tr",
   "IcoPath": "Images/app.png",
   "ExecuteFileName": "main.py"
 }
