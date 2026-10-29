@@ -39,8 +39,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/invalid":
             raw = b"<html>not an API</html>"
         else:
+            analysis = {"translation": "Please confirm the meeting time.\n请确认会议时间。", "terms": [
+                {"term": "meeting time", "meaning": "会议时间", "context": "在这句话中指请对方确认会议安排的具体时间。",
+                 "example": "Please confirm the meeting time."}]}
             raw = json.dumps({"choices": [{"message": {
-                "content": "Please confirm the meeting time.\n请确认会议时间。"},
+                "content": json.dumps(analysis, ensure_ascii=False)},
                 "finish_reason": "stop"}]}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -79,9 +82,12 @@ class PluginTests(unittest.TestCase):
         self.assertFalse(body["stream"])
         self.assertEqual(body["messages"][1], {"role": "user", "content": "请确认会议时间"})
         self.assertIn("英语", body["messages"][0]["content"])
-        self.assertEqual(rows[0]["Title"], "Please confirm the meeting time.")
+        self.assertEqual(rows[0]["Title"], "Please confirm the meeting time. 请确认会议时间。")
         self.assertEqual(len(rows), 2)
         self.assertIn("请确认会议时间", rows[0]["JsonRPCAction"]["parameters"][0])
+        self.assertEqual(rows[1]["Title"], "meeting time — 会议时间")
+        self.assertIn("在这句话中", rows[1]["SubTitle"])
+        self.assertIn('"translation"', body["messages"][0]["content"])
 
     def test_real_entrypoint_protocol(self):
         rpc = {"method": "query", "parameters": ["zh Hello"], "settings": self.settings}
@@ -151,10 +157,57 @@ class PluginTests(unittest.TestCase):
     def test_multiline_and_long_copy(self):
         original = "中文🙂\n'Quotes'; $(Get-Process)\n" + "a" * 6500
         rows = p.result_rows(original)
-        self.assertEqual(len(rows), 101)
+        self.assertEqual(len(rows), 1)
         for row in rows:
             self.assertEqual(row["JsonRPCAction"]["parameters"], [original])
+            self.assertEqual(row["CopyText"], original)
+            self.assertEqual(row["Preview"]["Description"], original)
+            self.assertEqual(row["TitleToolTip"], original)
+            self.assertFalse(row["AddSelectedCount"])
         self.assertNotIn("\n", rows[0]["Title"])
+
+    def test_translation_always_first_and_terms_copy_own_explanation(self):
+        text = "Uplink capacity improves assured experience."
+        terms = [{"term": "uplink capacity", "meaning": "上行容量", "context": "本句指网络承载上行业务的能力。", "example": text},
+                 {"term": "assured experience", "meaning": "有保障的体验", "context": "本句指容量提升带来的体验保障。", "example": text}]
+        rows = p.result_rows({"translation": "上行容量改善有保障的体验。", "terms": terms})
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[0]["CopyText"], "上行容量改善有保障的体验。")
+        self.assertIn("本句语境", rows[1]["CopyText"])
+        self.assertIn("上行容量", rows[1]["CopyText"])
+        self.assertNotEqual(rows[0]["CopyText"], rows[1]["CopyText"])
+        self.assertGreater(rows[0]["Score"], rows[1]["Score"])
+        self.assertGreater(rows[1]["Score"], rows[2]["Score"])
+        self.assertTrue(all(r["AddSelectedCount"] is False for r in rows))
+
+    def test_structured_output_filters_hallucinations_duplicates_and_bad_entries(self):
+        terms = [None, {"term": 2},
+                 {"term": "unknown term", "meaning": "不存在", "context": "词组不在原文中", "example": ""},
+                 {"term": "uplink capacity", "meaning": "上行容量", "context": "结合该句解释", "example": "invented example"},
+                 {"term": "UPLINK CAPACITY", "meaning": "上行容量", "context": "重复项", "example": ""},
+                 {"term": "capacity", "meaning": "容量", "context": "", "example": ""}]
+        content = json.dumps({"translation": "上行容量提升。", "terms": terms})
+        parsed = p.parse_analysis(content, "Uplink capacity improves.", self.settings)
+        self.assertEqual(parsed["translation"], "上行容量提升。")
+        self.assertEqual(len(parsed["terms"]), 1)
+        self.assertEqual(parsed["terms"][0]["example"], "")
+
+    def test_fenced_json_plain_text_and_bad_json(self):
+        valid = '{"translation":"你好", "terms":[]}'
+        self.assertEqual(p.parse_analysis('```json\n' + valid + '\n```', "hello", self.settings)["translation"], "你好")
+        self.assertEqual(p.parse_analysis("你好", "hello", self.settings), {"translation": "你好", "terms": []})
+        for bad in ['{"translation":', '{"terms": []}', '["wrong"]']:
+            with self.subTest(bad=bad), self.assertRaises(p.UserError):
+                p.parse_analysis(bad, "hello", self.settings)
+
+    def test_glossary_limit_and_disable(self):
+        terms = [{"term": "term%s" % i, "meaning": "释义", "context": "本句含义", "example": ""} for i in range(10)]
+        original = " ".join(t["term"] for t in terms)
+        content = json.dumps({"translation": "译文", "terms": terms})
+        self.assertEqual(len(p.parse_analysis(content, original, self.settings)["terms"]), 5)
+        parsed = p.parse_analysis(content, original, dict(self.settings, glossary_count="8"))
+        self.assertEqual(len(p.result_rows(parsed)), 9)
+        self.assertEqual(p.parse_analysis(content, original, dict(self.settings, glossary_count="0"))["terms"], [])
 
     def test_debounce_suppresses_superseded_request(self):
         self.settings["debounce_ms"] = "100"
