@@ -1,0 +1,197 @@
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("translate_plugin", ROOT / "main.py")
+p = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(p)
+
+
+class Handler(BaseHTTPRequestHandler):
+    records = []
+
+    def log_message(self, *args):
+        pass
+
+    def do_POST(self):
+        raw = self.rfile.read(int(self.headers["Content-Length"]))
+        self.records.append((self.path, self.headers.get("Authorization"), json.loads(raw)))
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/v1/chat/completions")
+            self.end_headers()
+            return
+        if self.path == "/denied":
+            self.send_response(401)
+            self.end_headers()
+            self.wfile.write(b'{"error":"secret-token"}')
+            return
+        if self.path == "/invalid":
+            raw = b"<html>not an API</html>"
+        else:
+            raw = json.dumps({"choices": [{"message": {
+                "content": "Please confirm the meeting time.\n请确认会议时间。"},
+                "finish_reason": "stop"}]}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(raw)
+
+
+class PluginTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
+        cls.thread.start()
+        cls.url = "http://127.0.0.1:%s" % cls.server.server_port
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        cls.thread.join()
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        patcher = patch.object(p, "state_file", return_value=Path(self.temp.name) / "pending")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.settings = {"endpoint": self.url + "/v1/chat/completions", "model": "mock-model",
+                         "api_key": "test-key", "debounce_ms": "0", "timeout": "3"}
+
+    def test_http_end_to_end(self):
+        rows = p.query("en 请确认会议时间", self.settings)
+        path, auth, body = Handler.records[-1]
+        self.assertEqual(auth, "Bearer test-key")
+        self.assertEqual(body["model"], "mock-model")
+        self.assertFalse(body["stream"])
+        self.assertEqual(body["messages"][1], {"role": "user", "content": "请确认会议时间"})
+        self.assertIn("英语", body["messages"][0]["content"])
+        self.assertEqual(rows[0]["Title"], "Please confirm the meeting time.")
+        self.assertEqual(len(rows), 2)
+        self.assertIn("请确认会议时间", rows[0]["JsonRPCAction"]["parameters"][0])
+
+    def test_real_entrypoint_protocol(self):
+        rpc = {"method": "query", "parameters": ["zh Hello"], "settings": self.settings}
+        result = subprocess.run([sys.executable, str(ROOT / "main.py"), json.dumps(rpc)],
+                                capture_output=True, check=True, encoding="utf-8")
+        self.assertFalse(result.stderr)
+        self.assertIn("result", json.loads(result.stdout))
+        self.assertEqual(json.loads(result.stdout)["result"][0]["JsonRPCAction"]["method"], "copy")
+
+    def test_query_prefix(self):
+        self.assertEqual(p.parse_query("enough time", "英语"), ("enough time", "英语"))
+        self.assertEqual(p.parse_query("en\thello", "简体中文"), ("hello", "英语"))
+        self.assertEqual(p.parse_query("en", "简体中文"), ("", "英语"))
+
+    def test_manual_mode(self):
+        self.settings["manual"] = True
+        with patch.object(p, "translate", return_value="Hello") as call:
+            self.assertIn(";;", p.query("en 你好", self.settings)[0]["Title"])
+            call.assert_not_called()
+            self.assertEqual(p.query("en 你好;;", self.settings)[0]["Title"], "Hello")
+            self.assertEqual(call.call_args.args[0], "你好")
+
+    def test_empty_missing_configuration(self):
+        self.assertIn("输入", p.query("", {})[0]["Title"])
+        with self.assertRaisesRegex(p.UserError, "URL"):
+            p.query("Hello", {})
+
+    def test_endpoint_validation(self):
+        for url in ["http://example.com/v1/chat/completions", "file:///tmp/foo",
+                    "https://user:password@example.com", "https://example.com/?key=secret",
+                    "https://example.com:wrong/api"]:
+            with self.subTest(url=url), self.assertRaises(p.UserError):
+                p.build_request("Hi", "英语", dict(self.settings, endpoint=url))
+
+    def test_custom_prompt_and_environment_key(self):
+        with patch.dict(os.environ, {"LEO_TRANSLATE_API_KEY": "environment-key"}):
+            req = p.build_request("hi", "简体中文", dict(self.settings, api_key="", prompt="My prompt"))
+            self.assertEqual(req.get_header("Authorization"), "Bearer environment-key")
+            body = json.loads(req.data)
+            self.assertIn("My prompt\n", body["messages"][0]["content"])
+            self.assertIn("简体中文", body["messages"][0]["content"])
+
+    def test_error_response_redacts_service_body(self):
+        with self.assertRaises(p.UserError) as cm:
+            p.translate("Hi", "英语", dict(self.settings, endpoint=self.url + "/denied"))
+        self.assertIn("401", str(cm.exception))
+        self.assertNotIn("secret-token", str(cm.exception))
+
+    def test_redirect_is_not_followed(self):
+        before = len(Handler.records)
+        with self.assertRaisesRegex(p.UserError, "302"):
+            p.translate("Hi", "英语", dict(self.settings, endpoint=self.url + "/redirect"))
+        self.assertEqual(len(Handler.records) - before, 1)
+
+    def test_non_json(self):
+        with self.assertRaisesRegex(p.UserError, "JSON"):
+            p.translate("Hi", "英语", dict(self.settings, endpoint=self.url + "/invalid"))
+
+    def test_response_formats(self):
+        value = {"choices": [{"message": {"content": [{"type": "text", "text": "你好"}]}}]}
+        self.assertEqual(p.extract_translation(value), "你好")
+        for data in [{}, {"choices": []}, {"choices": [{"message": {"content": None}}]},
+                     {"choices": [{"finish_reason": "length", "message": {"content": "partial"}}]}]:
+            with self.subTest(data=data), self.assertRaises(p.UserError):
+                p.extract_translation(data)
+
+    def test_multiline_and_long_copy(self):
+        original = "中文🙂\n'Quotes'; $(Get-Process)\n" + "a" * 6500
+        rows = p.result_rows(original)
+        self.assertEqual(len(rows), 101)
+        for row in rows:
+            self.assertEqual(row["JsonRPCAction"]["parameters"], [original])
+        self.assertNotIn("\n", rows[0]["Title"])
+
+    def test_debounce_suppresses_superseded_request(self):
+        self.settings["debounce_ms"] = "100"
+        output = []
+        with patch.object(p, "translate", return_value="latest") as call:
+            thread = threading.Thread(target=lambda: output.append(p.query("old", self.settings)))
+            thread.start()
+            for _ in range(100):
+                if p.state_file().exists():
+                    break
+                time.sleep(0.001)
+            p.query("", self.settings)
+            thread.join()
+            self.assertEqual(output, [[]])
+            call.assert_not_called()
+
+    def test_stale_inflight_response_not_shown(self):
+        def api(*args):
+            p.mark_latest()
+            return "stale"
+        with patch.object(p, "translate", side_effect=api):
+            self.assertEqual(p.query("old", self.settings), [])
+
+    def test_clipboard_passes_text_as_data(self):
+        text = '你好🙂\n"; Write-Host dangerous; $env:PATH'
+        with patch.object(p.os, "name", "nt"), patch.object(p.subprocess, "run") as run:
+            p.copy_text(text)
+            self.assertNotIn(text, " ".join(run.call_args.args[0]))
+            self.assertEqual(run.call_args.kwargs["input"], text.encode("utf-8"))
+            self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_manifest(self):
+        manifest = json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["Language"], "python")
+        self.assertTrue((ROOT / manifest["ExecuteFileName"]).is_file())
+        self.assertTrue((ROOT / manifest["IcoPath"]).is_file())
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

@@ -1,0 +1,46 @@
+name: Test and publish plugin
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the exact pushed commit
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run plugin tests against a local mock API
+        run: python -m unittest discover -s tests -v
+      - name: Package tested plugin source
+        id: package
+        run: python .github/scripts/package.py
+      - name: Create tag and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.package.outputs.version }}
+          ASSET: ${{ steps.package.outputs.asset }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          notes="docs/release-notes/${tag}.md"
+          test -f "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; preserving the published release."
+            exit 0
+          fi
+          gh release create "$tag" "$ASSET" dist/SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title "Leo Translate ${VERSION}" \
+            --notes-file "$notes" \
+            --latest
